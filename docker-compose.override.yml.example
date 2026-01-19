@@ -1,0 +1,30 @@
+# Local Development Override
+# Copy this file to docker-compose.override.yml for local development
+# This file is automatically loaded by docker-compose and will override
+# settings from docker-compose.yml
+
+services:
+  backend:
+    environment:
+      NODE_ENV: development
+    # Mount source code for hot reload (requires nodemon in package.json)
+    volumes:
+      - ./server:/app/server
+      - ./src:/app/src
+      - ./public:/app/public
+      - ./package.json:/app/package.json
+      - /app/node_modules
+      - /app/build
+    # Override command for development with nodemon
+    # Uncomment if you want to use nodemon in Docker
+    # command: ["npm", "run", "server"]
+
+  db:
+    # Expose database port for local tools (pgAdmin, DBeaver, etc.)
+    ports:
+      - "5432:5432"
+    # Optional: Mount a local directory for database data
+    # volumes:
+    #   - ./postgres_data:/var/lib/postgresql/data
+
+

@@ -1,0 +1,90 @@
+﻿# Docker Compose - Full Stack Application
+# All services (frontend, backend, database) run in containers
+#
+# Usage:
+#   docker-compose up --build
+#
+# Services:
+#   - db: PostgreSQL database
+#   - server: Express backend API
+#   - client: React frontend
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: habit-budget-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-habit_budget_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-habit_budget_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Backend API Server
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: habit-budget-server
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${PORT:-5000}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-habit_budget_db}
+    ports:
+      - "${PORT:-5000}:5000"
+    volumes:
+      # Mount server code for hot-reload (development)
+      - ./server:/app/server
+      # Exclude node_modules to use container's installed packages
+      - /app/node_modules
+      # Mount package.json to detect dependency changes
+      - ./package.json:/app/package.json
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    command: npm run server
+
+  # React Frontend
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+      args:
+        REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:5000}
+    container_name: habit-budget-client
+    environment:
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:5000}
+    ports:
+      - "${CLIENT_PORT:-3000}:3000"
+    depends_on:
+      server:
+        condition: service_started
+    networks:
+      - app-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge
